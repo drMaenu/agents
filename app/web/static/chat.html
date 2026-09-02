@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Agent Chat</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f4f6f8;
+            --panel: #ffffff;
+            --border: #d0d7de;
+            --text: #1f2328;
+            --muted: #57606a;
+            --user: #dbeafe;
+            --agent: #eaf7ea;
+            --error: #fde2e1;
+            --button: #2563eb;
+            --button-hover: #1d4ed8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .chat-box {
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            background: #fafbfc;
+            margin-bottom: 16px;
+        }
+
+        .message {
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .message.user {
+            background: var(--user);
+        }
+
+        .message.agent {
+            background: var(--agent);
+        }
+
+        .message.error {
+            background: var(--error);
+        }
+
+        .label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .composer {
+            display: flex;
+            gap: 12px;
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 80px;
+            max-height: 180px;
+            resize: vertical;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font: inherit;
+        }
+
+        button {
+            align-self: flex-end;
+            padding: 12px 18px;
+            border: none;
+            border-radius: 10px;
+            background: var(--button);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--button-hover);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 14px;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>Support Agent Chat</h1>
+        <div class="subtitle">
+            Lokale Testoberfläche für den First-Level-Support-Agenten
+        </div>
+
+        <div id="chatBox" class="chat-box">
+            <div class="message agent">
+                <span class="label">Agent</span>
+                Hallo. Ich bin bereit für deine Support-Anfrage.
+            </div>
+        </div>
+
+        <div class="composer">
+            <textarea
+                id="messageInput"
+                placeholder="Beschreibe dein Problem oder gib einen Fehlercode ein..."
+            ></textarea>
+            <button id="sendButton">Senden</button>
+        </div>
+
+        <div id="status" class="status"></div>
+    </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById("chatBox");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const statusElement = document.getElementById("status");
+
+    function appendMessage(role, text) {
+        const messageElement = document.createElement("div");
+        messageElement.classList.add("message", role);
+
+        const labelElement = document.createElement("span");
+        labelElement.classList.add("label");
+        labelElement.textContent = role === "user" ? "Du" : role === "agent" ? "Agent" : "Fehler";
+
+        const textElement = document.createElement("div");
+        textElement.textContent = text;
+
+        messageElement.appendChild(labelElement);
+        messageElement.appendChild(textElement);
+
+        chatBox.appendChild(messageElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function sendMessage() {
+        const message = messageInput.value.trim();
+
+        if (!message) {
+            statusElement.textContent = "Bitte eine Nachricht eingeben.";
+            return;
+        }
+
+        appendMessage("user", message);
+        messageInput.value = "";
+        messageInput.focus();
+
+        sendButton.disabled = true;
+        statusElement.textContent = "Anfrage wird verarbeitet...";
+
+        try {
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ message })
+            });
+
+            if (!response.ok) {
+                let errorMessage = "Unbekannter Fehler";
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorMessage;
+                } catch {
+                    errorMessage = `HTTP-Fehler ${response.status}`;
+                }
+
+                appendMessage("error", errorMessage);
+                statusElement.textContent = "Fehler bei der Anfrage.";
+                return;
+            }
+
+            const data = await response.json();
+            appendMessage("agent", data.answer);
+            statusElement.textContent = `Antwort erhalten (${data.model}).`;
+        } catch (error) {
+            appendMessage("error", "Verbindung zum Backend fehlgeschlagen.");
+            statusElement.textContent = "Netzwerk- oder Serverfehler.";
+        } finally {
+            sendButton.disabled = false;
+        }
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+
+    messageInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    });
+</script>
+</body>
+</html>
