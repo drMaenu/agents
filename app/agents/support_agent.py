@@ -1,19 +1,18 @@
+import json
 import logging
 
 from openai import OpenAI
 
 from app.core.config import get_settings
 from app.models.chat_models import ChatRequest, ChatResponse
+from app.tools.support_tools import extract_error_code, get_error_code_info
 
 logger = logging.getLogger(__name__)
 
 
 class SupportAgent:
     """
-    Einfacher Support-Agent mit echter OpenAI-Anbindung.
-
-    Dieser Stand nutzt bewusst noch keinen komplexen Agenten-Workflow,
-    sondern einen direkten Modellaufruf als stabile Grundlage.
+    Support-Agent mit OpenAI-Anbindung und einfachem Fehlercode-Lookup.
     """
 
     def __init__(self) -> None:
@@ -21,11 +20,57 @@ class SupportAgent:
         self.model = settings.openai_model
         self.client = OpenAI(api_key=settings.openai_api_key)
 
+    def _build_system_prompt(self) -> str:
+        """
+        Erzeugt den System-Prompt für den Support-Agenten.
+        """
+        return (
+            "Du bist ein hilfreicher First-Level-Support-Agent. "
+            "Antworte klar, freundlich und strukturiert. "
+            "Nutze bereitgestellte technische Informationen vorrangig. "
+            "Erfinde keine Produktdetails oder internen Fakten. "
+            "Wenn ein Fehlercode bekannt ist, erkläre Bedeutung, mögliche Ursachen "
+            "und sinnvolle nächste Schritte. "
+            "Wenn Informationen fehlen, frage gezielt und knapp nach."
+        )
+
+    def _build_user_message(self, user_text: str) -> str:
+        """
+        Baut die Nutzernachricht optional mit ergänztem Tool-Kontext auf.
+        """
+        error_code = extract_error_code(user_text)
+
+        if not error_code:
+            return user_text
+
+        error_info = get_error_code_info(error_code)
+
+        if not error_info:
+            logger.info("Kein lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
+            return user_text
+
+        logger.info("Lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
+
+        tool_context = {
+            "detected_error_code": error_code,
+            "error_code_details": error_info,
+        }
+
+        return (
+            f"Nutzeranfrage:\n{user_text}\n\n"
+            "Zusätzlicher interner Support-Kontext:\n"
+            f"{json.dumps(tool_context, ensure_ascii=False, indent=2)}\n\n"
+            "Nutze diese Informationen für eine präzise Support-Antwort."
+        )
+
     def get_response(self, request: ChatRequest) -> ChatResponse:
         """
         Sendet die Benutzernachricht an das OpenAI-Modell und gibt die Antwort zurück.
         """
         logger.info("Sende Anfrage an OpenAI-Modell: %s", self.model)
+
+        system_prompt = self._build_system_prompt()
+        user_message = self._build_user_message(request.message)
 
         try:
             response = self.client.responses.create(
@@ -36,12 +81,7 @@ class SupportAgent:
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": (
-                                    "Du bist ein hilfreicher First-Level-Support-Agent. "
-                                    "Antworte klar, freundlich und strukturiert. "
-                                    "Wenn Informationen fehlen, weise knapp darauf hin. "
-                                    "Erfinde keine internen Fakten."
-                                ),
+                                "text": system_prompt,
                             }
                         ],
                     },
@@ -50,7 +90,7 @@ class SupportAgent:
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": request.message,
+                                "text": user_message,
                             }
                         ],
                     },
