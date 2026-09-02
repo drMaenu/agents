@@ -1,32 +1,24 @@
-import logging
+from fastapi import FastAPI
 
+from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.models.chat_models import ChatRequest
-from app.services.chat_service import ChatService
+
+settings = get_settings()
+setup_logging(settings.log_level)
+
+app = FastAPI(
+    title="Support Agent API",
+    version="0.1.0",
+    description="First-Level-Support-System mit OpenAI-Anbindung",
+)
+
+app.include_router(router)
 
 
-def main() -> None:
-    settings = get_settings()
-    setup_logging(settings.log_level)
-
-    logger = logging.getLogger(__name__)
-    service = ChatService()
-
-    request = ChatRequest(
-        message="Hallo, mein Gerät zeigt den Fehler E-104. Was kann ich tun?"
-    )
-
-    try:
-        response = service.process_chat(request)
-        print("Antwort des Support-Agenten:")
-        print(response.answer)
-        print()
-        print(f"Verwendetes Modell: {response.model}")
-    except Exception as exc:
-        logger.exception("Anwendungsausführung fehlgeschlagen.")
-        print(f"Fehler: {exc}")
-
-
-if __name__ == "__main__":
-    main()
+@app.get("/", tags=["system"])
+def root() -> dict[str, str]:
+    """
+    Einfache Root-Route.
+    """
+    return {"message": "Support Agent API is running"}
