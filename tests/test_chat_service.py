@@ -93,6 +93,8 @@ def test_process_chat_returns_escalation_without_agent_call():
     request = ChatRequest(message="Bitte Ticket erstellen, ich habe alles probiert.")
     response = service.process_chat(request)
 
-    assert response.answer == ESCALATION_MESSAGE
+    assert "Dieses Anliegen sollte an den nächsten Support-Level weitergegeben werden." in response.answer
+    assert "- Aktuelle Anfrage: Bitte Ticket erstellen, ich habe alles probiert." in response.answer
+    assert "- Eskalationsgrund:" in response.answer
     assert response.model == "escalation-guard"
     assert agent.called is False

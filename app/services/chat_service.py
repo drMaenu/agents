@@ -6,7 +6,8 @@ from app.services.topic_guard import (
     SUPPORT_REJECTION_MESSAGE,
     evaluate_topic_with_history,
 )
-from app.services.escalation_guard import ESCALATION_MESSAGE, evaluate_escalation
+from app.services.escalation_guard import evaluate_escalation
+from app.services.escalation_summary import build_escalation_summary
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,12 @@ class ChatService:
         )
 
         if escalation_result.escalate:
+            escalation_summary = build_escalation_summary(
+                request=request,
+                escalation_reason=escalation_result.reason,
+            )
             return ChatResponse(
-                answer=ESCALATION_MESSAGE,
+                answer=escalation_summary,
                 model="escalation-guard",
             )
 
