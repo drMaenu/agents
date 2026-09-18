@@ -4,7 +4,7 @@ import logging
 from openai import OpenAI
 
 from app.core.config import get_settings
-from app.models.chat_models import ChatRequest, ChatResponse
+from app.models.chat_models import ChatMessage, ChatRequest, ChatResponse
 from app.tools.support_tools import extract_error_code, get_error_code_info
 
 logger = logging.getLogger(__name__)
@@ -63,38 +63,77 @@ class SupportAgent:
             "Nutze diese Informationen für eine präzise Support-Antwort."
         )
 
+    def _build_history_messages(self, history: list[ChatMessage]) -> list[dict]:
+        """
+        Konvertiert den Chatverlauf in das erwartete OpenAI-Input-Format.
+        Nur user- und assistant-Nachrichten werden übernommen.
+        """
+        messages = []
+
+        for item in history:
+            if item.role not in {"user", "assistant"}:
+                logger.warning("Unbekannte History-Rolle übersprungen: %s", item.role)
+                continue
+
+            messages.append(
+                {
+                    "role": item.role,
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": item.content,
+                        }
+                    ],
+                }
+            )
+
+        return messages
+
+    def _build_model_input(self, request: ChatRequest) -> list[dict]:
+        """
+        Baut den vollständigen Input für das OpenAI-Modell:
+        System-Prompt, Chat-Historie und aktuelle Benutzernachricht.
+        """
+        system_prompt = self._build_system_prompt()
+        user_message = self._build_user_message(request.message)
+
+        model_input = [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": system_prompt,
+                    }
+                ],
+            }
+        ]
+
+        model_input.extend(self._build_history_messages(request.history))
+        model_input.append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": user_message,
+                    }
+                ],
+            }
+        )
+
+        return model_input
+
     def get_response(self, request: ChatRequest) -> ChatResponse:
         """
         Sendet die Benutzernachricht an das OpenAI-Modell und gibt die Antwort zurück.
         """
         logger.info("Sende Anfrage an OpenAI-Modell: %s", self.model)
 
-        system_prompt = self._build_system_prompt()
-        user_message = self._build_user_message(request.message)
-
         try:
             response = self.client.responses.create(
                 model=self.model,
-                input=[
-                    {
-                        "role": "system",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": system_prompt,
-                            }
-                        ],
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": user_message,
-                            }
-                        ],
-                    },
-                ],
+                input=self._build_model_input(request),
             )
 
             answer = response.output_text.strip()

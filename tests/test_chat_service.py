@@ -1,4 +1,4 @@
-from app.models.chat_models import ChatRequest, ChatResponse
+from app.models.chat_models import ChatMessage, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 from app.services.topic_guard import SUPPORT_REJECTION_MESSAGE
 
@@ -6,9 +6,11 @@ from app.services.topic_guard import SUPPORT_REJECTION_MESSAGE
 class DummyAgent:
     def __init__(self) -> None:
         self.called = False
+        self.last_request = None
 
     def get_response(self, request: ChatRequest) -> ChatResponse:
         self.called = True
+        self.last_request = request
         return ChatResponse(
             answer="Support-Antwort",
             model="dummy-agent",
@@ -38,24 +40,26 @@ def test_process_chat_rejects_off_topic_request_without_agent_call():
     assert response.model == "topic-guard"
     assert agent.called is False
 
-def test_process_chat_allows_login_problem():
+
+def test_process_chat_preserves_history_for_agent():
     agent = DummyAgent()
     service = ChatService(agent=agent)
 
-    request = ChatRequest(message="Ich kann mich nicht anmelden.")
+    request = ChatRequest(
+        message="Fehler 403 beim Login.",
+        history=[
+            ChatMessage(role="user", content="Ich kann mich nicht anmelden."),
+            ChatMessage(role="assistant", content="Welche Fehlermeldung wird angezeigt?"),
+        ],
+    )
+
     response = service.process_chat(request)
 
     assert response.answer == "Support-Antwort"
     assert response.model == "dummy-agent"
     assert agent.called is True
-
-def test_process_chat_rejects_recipe_request_without_agent_call():
-    agent = DummyAgent()
-    service = ChatService(agent=agent)
-
-    request = ChatRequest(message="Wie koche ich Lasagne?")
-    response = service.process_chat(request)
-
-    assert response.answer == SUPPORT_REJECTION_MESSAGE
-    assert response.model == "topic-guard"
-    assert agent.called is False
+    assert agent.last_request is not None
+    assert agent.last_request.message == "Fehler 403 beim Login."
+    assert len(agent.last_request.history) == 2
+    assert agent.last_request.history[0].content == "Ich kann mich nicht anmelden."
+    assert agent.last_request.history[1].content == "Welche Fehlermeldung wird angezeigt?"

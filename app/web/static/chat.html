@@ -17,6 +17,8 @@
             --error: #fde2e1;
             --button: #2563eb;
             --button-hover: #1d4ed8;
+            --secondary-button: #6b7280;
+            --secondary-button-hover: #4b5563;
         }
 
         * {
@@ -110,12 +112,16 @@
             font: inherit;
         }
 
+        .actions {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
         button {
-            align-self: flex-end;
             padding: 12px 18px;
             border: none;
             border-radius: 10px;
-            background: var(--button);
             color: white;
             font-weight: bold;
             cursor: pointer;
@@ -128,6 +134,22 @@
         button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        #sendButton {
+            background: var(--button);
+        }
+
+        #sendButton:hover {
+            background: var(--button-hover);
+        }
+
+        #resetButton {
+            background: var(--secondary-button);
+        }
+
+        #resetButton:hover {
+            background: var(--secondary-button-hover);
         }
 
         .status {
@@ -158,94 +180,6 @@
                 id="messageInput"
                 placeholder="Beschreibe dein Problem oder gib einen Fehlercode ein..."
             ></textarea>
-            <button id="sendButton">Senden</button>
-        </div>
 
-        <div id="status" class="status"></div>
-    </div>
-</div>
-
-<script>
-    const chatBox = document.getElementById("chatBox");
-    const messageInput = document.getElementById("messageInput");
-    const sendButton = document.getElementById("sendButton");
-    const statusElement = document.getElementById("status");
-
-    function appendMessage(role, text) {
-        const messageElement = document.createElement("div");
-        messageElement.classList.add("message", role);
-
-        const labelElement = document.createElement("span");
-        labelElement.classList.add("label");
-        labelElement.textContent = role === "user" ? "Du" : role === "agent" ? "Agent" : "Fehler";
-
-        const textElement = document.createElement("div");
-        textElement.textContent = text;
-
-        messageElement.appendChild(labelElement);
-        messageElement.appendChild(textElement);
-
-        chatBox.appendChild(messageElement);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    async function sendMessage() {
-        const message = messageInput.value.trim();
-
-        if (!message) {
-            statusElement.textContent = "Bitte eine Nachricht eingeben.";
-            return;
-        }
-
-        appendMessage("user", message);
-        messageInput.value = "";
-        messageInput.focus();
-
-        sendButton.disabled = true;
-        statusElement.textContent = "Anfrage wird verarbeitet...";
-
-        try {
-            const response = await fetch("/chat", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ message })
-            });
-
-            if (!response.ok) {
-                let errorMessage = "Unbekannter Fehler";
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.detail || errorMessage;
-                } catch {
-                    errorMessage = `HTTP-Fehler ${response.status}`;
-                }
-
-                appendMessage("error", errorMessage);
-                statusElement.textContent = "Fehler bei der Anfrage.";
-                return;
-            }
-
-            const data = await response.json();
-            appendMessage("agent", data.answer);
-            statusElement.textContent = `Antwort erhalten (${data.model}).`;
-        } catch (error) {
-            appendMessage("error", "Verbindung zum Backend fehlgeschlagen.");
-            statusElement.textContent = "Netzwerk- oder Serverfehler.";
-        } finally {
-            sendButton.disabled = false;
-        }
-    }
-
-    sendButton.addEventListener("click", sendMessage);
-
-    messageInput.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            sendMessage();
-        }
-    });
-</script>
-</body>
-</html>
+            <div class="actions">
+                <button id="resetButton" type="button">

@@ -39,5 +39,8 @@ class ChatService:
                 model="topic-guard",
             )
 
-        sanitized_request = ChatRequest(message=message)
+        sanitized_request = ChatRequest(
+            message=message,
+            history=request.history,
+        )
         return self.agent.get_response(sanitized_request)

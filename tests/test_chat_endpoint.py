@@ -73,3 +73,28 @@ def test_chat_endpoint_rejects_off_topic_request() -> None:
         assert dummy_agent.called is False
     finally:
         routes.chat_service = original_service
+
+
+def test_chat_endpoint_accepts_history() -> None:
+    original_service = routes.chat_service
+    routes.chat_service = DummyChatService()
+
+    try:
+        response = client.post(
+            "/chat",
+            json={
+                "message": "Fehler 403 beim Login.",
+                "history": [
+                    {"role": "user", "content": "Ich kann mich nicht anmelden."},
+                    {"role": "assistant", "content": "Welche Fehlermeldung wird angezeigt?"},
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "answer": "Dummy-Antwort: Fehler 403 beim Login.",
+            "model": "dummy-model",
+        }
+    finally:
+        routes.chat_service = original_service
