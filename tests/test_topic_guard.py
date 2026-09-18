@@ -1,4 +1,6 @@
 from app.services.topic_guard import evaluate_topic
+from app.models.chat_models import ChatMessage
+from app.services.topic_guard import evaluate_topic_with_history
 
 
 def test_allows_message_with_error_code():
@@ -90,3 +92,41 @@ def test_does_not_treat_version_number_alone_as_support_request():
 
     assert result.allowed is False
     assert result.reason == "off_topic"
+
+
+def test_allows_short_follow_up_with_support_context():
+    result = evaluate_topic_with_history(
+        "HP LaserJet",
+        history=[
+            ChatMessage(role="user", content="Mein Drucker funktioniert nicht."),
+            ChatMessage(role="assistant", content="Welches Modell ist es?"),
+        ],
+    )
+
+    assert result.allowed is True
+    assert result.reason == "follow_up_with_support_context"
+
+
+def test_allows_yes_as_follow_up_with_support_context():
+    result = evaluate_topic_with_history(
+        "Ja",
+        history=[
+            ChatMessage(role="user", content="Ich kann mich nicht anmelden."),
+            ChatMessage(role="assistant", content="Tritt das Problem nur in der App auf?"),
+        ],
+    )
+
+    assert result.allowed is True
+    assert result.reason == "follow_up_with_support_context"
+
+
+def test_rejects_short_follow_up_without_support_context():
+    result = evaluate_topic_with_history(
+        "Ja",
+        history=[
+            ChatMessage(role="user", content="Erzähl mir etwas über Musik."),
+            ChatMessage(role="assistant", content="Welches Genre interessiert dich?"),
+        ],
+    )
+
+    assert result.allowed is False

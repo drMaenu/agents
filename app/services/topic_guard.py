@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.models.chat_models import ChatMessage
 import re
 
 SUPPORT_REJECTION_MESSAGE = (
@@ -132,3 +133,40 @@ def evaluate_topic(message: str) -> TopicGuardResult:
         allowed=False,
         reason="off_topic",
     )
+
+
+def has_support_context_in_history(history: list[ChatMessage]) -> bool:
+    for item in history:
+        if item.role != "user":
+            continue
+
+        result = evaluate_topic(item.content)
+        if result.allowed:
+            return True
+
+    return False
+
+
+def is_short_follow_up_answer(message: str) -> bool:
+    normalized = normalize_message(message)
+
+    if not normalized:
+        return False
+
+    word_count = len(normalized.split())
+    return word_count <= 5
+
+
+def evaluate_topic_with_history(message: str, history: list[ChatMessage]) -> TopicGuardResult:
+    current_result = evaluate_topic(message)
+
+    if current_result.allowed:
+        return current_result
+
+    if has_support_context_in_history(history) and is_short_follow_up_answer(message):
+        return TopicGuardResult(
+            allowed=True,
+            reason="follow_up_with_support_context",
+        )
+
+    return current_result

@@ -1,6 +1,7 @@
 from app.models.chat_models import ChatMessage, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 from app.services.topic_guard import SUPPORT_REJECTION_MESSAGE
+from app.models.chat_models import ChatMessage
 
 
 class DummyAgent:
@@ -63,3 +64,22 @@ def test_process_chat_preserves_history_for_agent():
     assert len(agent.last_request.history) == 2
     assert agent.last_request.history[0].content == "Ich kann mich nicht anmelden."
     assert agent.last_request.history[1].content == "Welche Fehlermeldung wird angezeigt?"
+
+
+def test_process_chat_allows_follow_up_with_support_context():
+    agent = DummyAgent()
+    service = ChatService(agent=agent)
+
+    request = ChatRequest(
+        message="HP LaserJet",
+        history=[
+            ChatMessage(role="user", content="Mein Drucker funktioniert nicht."),
+            ChatMessage(role="assistant", content="Welches Modell ist es?"),
+        ],
+    )
+
+    response = service.process_chat(request)
+
+    assert response.answer == "Support-Antwort"
+    assert response.model == "dummy-agent"
+    assert agent.called is True
