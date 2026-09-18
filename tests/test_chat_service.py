@@ -37,3 +37,25 @@ def test_process_chat_rejects_off_topic_request_without_agent_call():
     assert response.answer == SUPPORT_REJECTION_MESSAGE
     assert response.model == "topic-guard"
     assert agent.called is False
+
+def test_process_chat_allows_login_problem():
+    agent = DummyAgent()
+    service = ChatService(agent=agent)
+
+    request = ChatRequest(message="Ich kann mich nicht anmelden.")
+    response = service.process_chat(request)
+
+    assert response.answer == "Support-Antwort"
+    assert response.model == "dummy-agent"
+    assert agent.called is True
+
+def test_process_chat_rejects_recipe_request_without_agent_call():
+    agent = DummyAgent()
+    service = ChatService(agent=agent)
+
+    request = ChatRequest(message="Wie koche ich Lasagne?")
+    response = service.process_chat(request)
+
+    assert response.answer == SUPPORT_REJECTION_MESSAGE
+    assert response.model == "topic-guard"
+    assert agent.called is False

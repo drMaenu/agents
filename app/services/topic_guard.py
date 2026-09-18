@@ -18,27 +18,69 @@ SUPPORT_KEYWORDS = {
     "geraet",
     "konfiguration",
     "verbindung",
-    "melding",
     "meldung",
     "support",
     "installation",
     "update",
     "login",
     "anmeldung",
-    "funktioniert nicht",
-    "geht nicht",
     "wlan",
     "netzwerk",
+    "drucker",
     "app",
     "software",
     "hardware",
     "einrichten",
     "konfigurieren",
+    "passwort",
     "benutzer",
     "konto",
+    "ticket",
+    "zugang",
+    "server",
+    "client",
+    "vpn",
 }
 
-ERROR_CODE_PATTERN = re.compile(r"\b[A-Z]{1,3}-?\d{2,5}\b", re.IGNORECASE)
+SUPPORT_PHRASES = {
+    "funktioniert nicht",
+    "geht nicht",
+    "kann mich nicht anmelden",
+    "ich kann mich nicht anmelden",
+    "wie richte ich",
+    "wie konfiguriere ich",
+    "warum funktioniert",
+    "ich bekomme die meldung",
+    "ich bekomme den fehler",
+    "verbindung fehlgeschlagen",
+    "kann nicht verbinden",
+    "zeigt fehler",
+    "zeigt einen fehler",
+}
+
+OFF_TOPIC_KEYWORDS = {
+    "rezept",
+    "kochen",
+    "gedicht",
+    "sommer",
+    "wetter",
+    "urlaub",
+    "film",
+    "kino",
+    "song",
+    "musik",
+    "mathematik",
+    "geschichte",
+    "biografie",
+    "einstein",
+    "lasagne",
+    "sport",
+}
+
+ERROR_CODE_PATTERN = re.compile(
+    r"\b(?:[A-Z]{1,5}-?\d{2,5}|\d{3,5})\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -47,17 +89,20 @@ class TopicGuardResult:
     reason: str
 
 
-def contains_support_keyword(message: str) -> bool:
-    normalized = message.casefold()
-    return any(keyword in normalized for keyword in SUPPORT_KEYWORDS)
+def normalize_message(message: str) -> str:
+    return message.strip().casefold()
 
 
 def contains_error_code(message: str) -> bool:
     return bool(ERROR_CODE_PATTERN.search(message))
 
 
+def count_keyword_hits(message: str, keywords: set[str]) -> int:
+    return sum(1 for keyword in keywords if keyword in message)
+
+
 def evaluate_topic(message: str) -> TopicGuardResult:
-    normalized = message.strip()
+    normalized = normalize_message(message)
 
     if not normalized:
         return TopicGuardResult(
@@ -65,16 +110,22 @@ def evaluate_topic(message: str) -> TopicGuardResult:
             reason="empty_message",
         )
 
-    if contains_error_code(normalized):
+    if contains_error_code(message):
         return TopicGuardResult(
             allowed=True,
             reason="error_code_detected",
         )
 
-    if contains_support_keyword(normalized):
+    support_keyword_hits = count_keyword_hits(normalized, SUPPORT_KEYWORDS)
+    support_phrase_hits = count_keyword_hits(normalized, SUPPORT_PHRASES)
+    off_topic_hits = count_keyword_hits(normalized, OFF_TOPIC_KEYWORDS)
+
+    score = support_keyword_hits + support_phrase_hits - (off_topic_hits * 2)
+
+    if score >= 1:
         return TopicGuardResult(
             allowed=True,
-            reason="support_keyword_detected",
+            reason="support_score_detected",
         )
 
     return TopicGuardResult(
