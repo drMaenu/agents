@@ -127,10 +127,6 @@
             cursor: pointer;
         }
 
-        button:hover {
-            background: var(--button-hover);
-        }
-
         button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -182,4 +178,134 @@
             ></textarea>
 
             <div class="actions">
-                <button id="resetButton" type="button">
+                <button id="resetButton" type="button">Neuer Chat</button>
+                <button id="sendButton" type="button">Senden</button>
+            </div>
+        </div>
+
+        <div id="status" class="status"></div>
+    </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById("chatBox");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const resetButton = document.getElementById("resetButton");
+    const statusElement = document.getElementById("status");
+
+    const initialAgentMessage = "Hallo. Ich bin bereit für deine Support-Anfrage.";
+    const chatHistory = [];
+
+    function appendMessage(role, text) {
+        const messageElement = document.createElement("div");
+        messageElement.classList.add("message", role);
+
+        const labelElement = document.createElement("span");
+        labelElement.classList.add("label");
+
+        if (role === "user") {
+            labelElement.textContent = "Du";
+        } else if (role === "agent") {
+            labelElement.textContent = "Agent";
+        } else {
+            labelElement.textContent = "Fehler";
+        }
+
+        const textElement = document.createElement("div");
+        textElement.textContent = text;
+
+        messageElement.appendChild(labelElement);
+        messageElement.appendChild(textElement);
+
+        chatBox.appendChild(messageElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function resetChat() {
+        chatHistory.length = 0;
+        chatBox.innerHTML = "";
+        appendMessage("agent", initialAgentMessage);
+        statusElement.textContent = "Chatverlauf wurde zurückgesetzt.";
+        messageInput.focus();
+    }
+
+    async function sendMessage() {
+        const message = messageInput.value.trim();
+
+        if (!message) {
+            statusElement.textContent = "Bitte eine Nachricht eingeben.";
+            return;
+        }
+
+        appendMessage("user", message);
+        messageInput.value = "";
+        messageInput.focus();
+
+        sendButton.disabled = true;
+        resetButton.disabled = true;
+        statusElement.textContent = "Anfrage wird verarbeitet...";
+
+        const requestPayload = {
+            message: message,
+            history: chatHistory.slice()
+        };
+
+        try {
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(requestPayload)
+            });
+
+            if (!response.ok) {
+                let errorMessage = "Unbekannter Fehler";
+
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorMessage;
+                } catch (parseError) {
+                    errorMessage = "HTTP-Fehler " + response.status;
+                }
+
+                appendMessage("error", errorMessage);
+                statusElement.textContent = "Fehler bei der Anfrage.";
+                return;
+            }
+
+            const data = await response.json();
+
+            chatHistory.push({ role: "user", content: message });
+            chatHistory.push({ role: "assistant", content: data.answer });
+
+            appendMessage("agent", data.answer);
+            statusElement.textContent = "Antwort erhalten (" + data.model + ").";
+        } catch (error) {
+            console.error(error);
+            appendMessage("error", "Verbindung zum Backend fehlgeschlagen.");
+            statusElement.textContent = "Netzwerk- oder Serverfehler.";
+        } finally {
+            sendButton.disabled = false;
+            resetButton.disabled = false;
+        }
+    }
+
+    sendButton.addEventListener("click", function () {
+        sendMessage();
+    });
+
+    resetButton.addEventListener("click", function () {
+        resetChat();
+    });
+
+    messageInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    });
+</script>
+</body>
+</html>
