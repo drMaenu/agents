@@ -130,3 +130,21 @@ def test_rejects_short_follow_up_without_support_context():
     )
 
     assert result.allowed is False
+
+
+def test_allows_ticket_request_as_support_topic():
+    result = evaluate_topic("Bitte Ticket erstellen.")
+
+    assert result.allowed is True
+
+
+def test_allows_escalation_phrase_as_support_topic():
+    result = evaluate_topic("Ich habe alles probiert, es geht immer noch nicht.")
+
+    assert result.allowed is True
+
+
+def test_allows_critical_outage_as_support_topic():
+    result = evaluate_topic("Das Produktivsystem hat einen Totalausfall.")
+
+    assert result.allowed is True

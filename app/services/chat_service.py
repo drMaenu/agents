@@ -42,6 +42,7 @@ class ChatService:
                 answer=SUPPORT_REJECTION_MESSAGE,
                 model="topic-guard",
             )
+
         escalation_result = evaluate_escalation(message)
         logger.info(
             "Eskalations-Guard ausgewertet: escalate=%s, reason=%s",

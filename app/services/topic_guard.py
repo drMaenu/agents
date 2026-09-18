@@ -41,6 +41,18 @@ SUPPORT_KEYWORDS = {
     "server",
     "client",
     "vpn",
+    "eskalation",
+    "eskalieren",
+    "weitergeben",
+    "weiterleiten",
+    "serverfehler",
+    "backend",
+    "backendfehler",
+    "totalausfall",
+    "produktivsystem",
+    "kritisch",
+    "störung",
+    "ausfall",
 }
 
 SUPPORT_PHRASES = {
@@ -57,6 +69,15 @@ SUPPORT_PHRASES = {
     "kann nicht verbinden",
     "zeigt fehler",
     "zeigt einen fehler",
+    "bitte ticket erstellen",
+    "bitte eskalieren",
+    "bitte weitergeben",
+    "bitte weiterleiten",
+    "ich habe alles probiert",
+    "es geht immer noch nicht",
+    "server ist nicht erreichbar",
+    "system ist ausgefallen",
+    "nichts geht mehr",
 }
 
 OFF_TOPIC_KEYWORDS = {
