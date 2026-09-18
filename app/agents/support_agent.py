@@ -34,95 +34,65 @@ class SupportAgent:
             "Wenn Informationen fehlen, frage gezielt und knapp nach."
         )
 
-    def _build_user_message(self, user_text: str) -> str:
+    def _format_history(self, history: list[ChatMessage]) -> str:
         """
-        Baut die Nutzernachricht optional mit ergänztem Tool-Kontext auf.
+        Formatiert den bisherigen Chatverlauf als Textblock.
         """
-        error_code = extract_error_code(user_text)
+        if not history:
+            return ""
 
-        if not error_code:
-            return user_text
-
-        error_info = get_error_code_info(error_code)
-
-        if not error_info:
-            logger.info("Kein lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
-            return user_text
-
-        logger.info("Lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
-
-        tool_context = {
-            "detected_error_code": error_code,
-            "error_code_details": error_info,
-        }
-
-        return (
-            f"Nutzeranfrage:\n{user_text}\n\n"
-            "Zusätzlicher interner Support-Kontext:\n"
-            f"{json.dumps(tool_context, ensure_ascii=False, indent=2)}\n\n"
-            "Nutze diese Informationen für eine präzise Support-Antwort."
-        )
-
-    def _build_history_messages(self, history: list[ChatMessage]) -> list[dict]:
-        """
-        Konvertiert den Chatverlauf in das erwartete OpenAI-Input-Format.
-        Nur user- und assistant-Nachrichten werden übernommen.
-        """
-        messages = []
-
+        lines = []
         for item in history:
-            if item.role not in {"user", "assistant"}:
+            if item.role == "user":
+                prefix = "Benutzer"
+            elif item.role == "assistant":
+                prefix = "Agent"
+            else:
                 logger.warning("Unbekannte History-Rolle übersprungen: %s", item.role)
                 continue
 
-            messages.append(
-                {
-                    "role": item.role,
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": item.content,
-                        }
-                    ],
+            lines.append(f"{prefix}: {item.content}")
+
+        if not lines:
+            return ""
+
+        return "Bisheriger Gesprächsverlauf:\n" + "\n".join(lines)
+
+    def _build_user_message(self, request: ChatRequest) -> str:
+        """
+        Baut die Nutzernachricht optional mit Verlauf und ergänztem Tool-Kontext auf.
+        """
+        parts = []
+
+        history_text = self._format_history(request.history)
+        if history_text:
+            parts.append(history_text)
+
+        parts.append(f"Aktuelle Nutzeranfrage:\n{request.message}")
+
+        error_code = extract_error_code(request.message)
+
+        if error_code:
+            error_info = get_error_code_info(error_code)
+
+            if error_info:
+                logger.info("Lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
+
+                tool_context = {
+                    "detected_error_code": error_code,
+                    "error_code_details": error_info,
                 }
-            )
 
-        return messages
+                parts.append(
+                    "Zusätzlicher interner Support-Kontext:\n"
+                    f"{json.dumps(tool_context, ensure_ascii=False, indent=2)}"
+                )
+            else:
+                logger.info("Kein lokaler Wissenseintrag für Fehlercode gefunden: %s", error_code)
 
-    def _build_model_input(self, request: ChatRequest) -> list[dict]:
-        """
-        Baut den vollständigen Input für das OpenAI-Modell:
-        System-Prompt, Chat-Historie und aktuelle Benutzernachricht.
-        """
-        system_prompt = self._build_system_prompt()
-        user_message = self._build_user_message(request.message)
+        parts.append("Nutze diese Informationen für eine präzise Support-Antwort.")
 
-        model_input = [
-            {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": system_prompt,
-                    }
-                ],
-            }
-        ]
-
-        model_input.extend(self._build_history_messages(request.history))
-        model_input.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": user_message,
-                    }
-                ],
-            }
-        )
-
-        return model_input
+        return "\n\n".join(parts)
 
     def get_response(self, request: ChatRequest) -> ChatResponse:
         """
@@ -130,10 +100,32 @@ class SupportAgent:
         """
         logger.info("Sende Anfrage an OpenAI-Modell: %s", self.model)
 
+        system_prompt = self._build_system_prompt()
+        user_message = self._build_user_message(request)
+
         try:
             response = self.client.responses.create(
                 model=self.model,
-                input=self._build_model_input(request),
+                input=[
+                    {
+                        "role": "system",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": system_prompt,
+                            }
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": user_message,
+                            }
+                        ],
+                    },
+                ],
             )
 
             answer = response.output_text.strip()
