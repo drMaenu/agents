@@ -2,6 +2,7 @@ from app.models.chat_models import ChatMessage, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 from app.services.topic_guard import SUPPORT_REJECTION_MESSAGE
 from app.models.chat_models import ChatMessage
+from app.services.escalation_guard import ESCALATION_MESSAGE
 
 
 class DummyAgent:
@@ -83,3 +84,15 @@ def test_process_chat_allows_follow_up_with_support_context():
     assert response.answer == "Support-Antwort"
     assert response.model == "dummy-agent"
     assert agent.called is True
+
+
+def test_process_chat_returns_escalation_without_agent_call():
+    agent = DummyAgent()
+    service = ChatService(agent=agent)
+
+    request = ChatRequest(message="Bitte Ticket erstellen, ich habe alles probiert.")
+    response = service.process_chat(request)
+
+    assert response.answer == ESCALATION_MESSAGE
+    assert response.model == "escalation-guard"
+    assert agent.called is False
